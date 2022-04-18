@@ -31,6 +31,12 @@ def calculate_cost(hist2D, point):
     s, t = point
     return calculate_entropy(hist2D[:s, :t]) + calculate_entropy(hist2D[s:, t:])
 
+def calculate_cost_vec(hist2D, vec):
+    n = vec.shape[1]
+    f_vec = np.zeros(n)
+    for i in range(n):
+        f_vec[i] = calculate_cost(hist2D, vec[:, i])
+    return f_vec
 
 def brute_force(im):
     hist2D = calculate_histogram2D(im)
@@ -43,13 +49,66 @@ def brute_force(im):
     s, t = result % 256, result // 256
     return t
 
+def pso(im, N_particles, N_iter):
+    #params
+    c1 = 1.3
+    c2 = 1.3
+    w = 0.8
+    v_max = 2.5
+    hist2D = calculate_histogram2D(im)
+    params = (c1, c2, w, v_max, hist2D)
+    X = np.random.randint(0, 255, (2, N_particles))
+    V = np.random.randn(2, N_particles)*0.2
 
-def main():
-    im = cv2.cvtColor(cv2.imread('rice.jpeg'), cv2.COLOR_BGR2GRAY)
-    t = brute_force(im)
-    _, im_bin = cv2.threshold(im, t, 255, cv2.THRESH_BINARY)
+    # setup + 1st iter
+    pb = X
+    f_pb = calculate_cost_vec(hist2D, pb)
+    gb = pb[:, f_pb.argmax()]
+    f_gb = f_pb.max()
+
+    r = np.random.rand(2)
+    V = w * V + c1 * r[0] * (pb - X) + c2 * r[1] * (gb.reshape(-1,1) - X)
+    V[(V > v_max)] = v_max
+    X = X + V.astype('int32')
+    #border condiction (space loop - naive)
+    for idx in range(X.shape[0]):
+        X[idx, (X[idx, :] >= 256)] -= 256
+        X[idx, (X[idx, :] < 0)] += 256
+
+    def iteration(V, X, pb, f_pb, gb, f_gb, params):
+        (c1, c2, w, v_max, hist2D) = params
+        f = calculate_cost_vec(hist2D, X)
+
+        pb[:, (f > f_pb)] = X[:, (f > f_pb)]
+        f_pb = calculate_cost_vec(hist2D, pb)
+        gb = pb[:, f_pb.argmax()]
+        f_gb = f_pb.max()
+
+        r = np.random.rand(2)
+        V = w * V + c1 * r[0] * (pb - X) + c2 * r[1] * (gb.reshape(-1, 1) - X)
+        V[(V > v_max)] = v_max
+        X = X + V.astype('int32')
+        for idx in range(X.shape[0]):
+            X[idx, (X[idx, :] >= 256)] -= 256
+            X[idx, (X[idx, :] < 0)] += 256
+
+    for i in range(N_iter):
+        iteration(V, X, pb, f_pb, gb, f_gb, params)
+    s, _ = gb
+
+    return s
+
+def main(flag = 0):
+    np.random.seed(seed=49)
+    im = cv2.cvtColor(cv2.imread('rice.png'), cv2.COLOR_BGR2GRAY)
+    if flag:
+        s = brute_force(im)
+    else:
+        s = pso(im, N_particles=20, N_iter=70)
+    _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
     cv2.imshow('result', im_bin)
-    cv2.waitKey()
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
