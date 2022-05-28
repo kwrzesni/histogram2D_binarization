@@ -1,0 +1,4 @@
+Brute force - Execution time: 25.251 [s], threshold: 81
+PSO standard - Execution time: 1.001 [s], threshold: 196, difference: 24.84%
+PSO modified - Execution time: 6.855 [s], threshold: 107, difference: 1.04%
+ABC method  -  Execution time: 0.190 [s], threshold: 117, difference: 1.77%

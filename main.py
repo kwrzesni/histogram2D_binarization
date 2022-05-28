@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from time import time
 
+import os
+directory = 'result_images'
 
 def calculate_histogram2D(im):
     kernel = np.ones([3, 3])/9
@@ -47,7 +50,7 @@ def brute_force(im):
         for t in range(256):
             cost[s, t] = calculate_cost(hist2D, (s, t))
     result = np.argmax(cost)
-    print(result)
+    # print(result)
     s, t = result % 256, result // 256
     return t
 
@@ -209,25 +212,94 @@ def ABC(hist2D, n, m, e, nep, nsp, ngh, N_iter):
 
     return round(best[0])
 
+def main(image='rice'):
+    np.random.seed(seed=29)
+    images = []
+    thrs = []
+    # im = cv2.cvtColor(cv2.imread('rice.png'), cv2.COLOR_BGR2GRAY)
+    names = ['rice', 'coins', 'cameraman', 'peppers']
+    if image not in names:
+        return "Wrong image name. Choose among: 'rice', 'coins', 'cameraman', 'peppers'."
+    im = cv2.cvtColor(cv2.imread(f'{image}.png'), cv2.COLOR_BGR2GRAY)
 
-def main(method=0):
-    #np.random.seed(seed=49)
-    im = cv2.cvtColor(cv2.imread('rice.png'), cv2.COLOR_BGR2GRAY)
-    hist2D = calculate_histogram2D(im)
+    with open(f"{os.path.join(directory, image)}_result_file.txt", "w") as file:
+        #Brute force
+        start_time = time()
+        s = brute_force(im)
+        _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+        stop_time = time()
+        target = (im_bin / 255).astype('uint8')
+        cv2.imwrite(f'{os.path.join(directory, image)}_target.png', im_bin)
+        images.append(im_bin)
+        thrs.append(s)
+        print(f'Brute force - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], threshold: {s}'
+              , file=file)
 
-    if method == 0:
+        # PSO standard
+        start_time = time()
+        hist2D = calculate_histogram2D(im)
         s = pso(hist2D, N_particles=20, N_iter=70)
-    elif method == 1:
-        s = pso_with_neighborhood(hist2D, N_particles=150, N_iter_neigh=30, N_iter_glob=20, R=20)
-    else:
-        s = ABC(hist2D, n=20, m=3, e=1, nep=7, nsp=3, ngh=2, N_iter=10)
+        _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+        stop_time = time()
+        cv2.imwrite(f'{os.path.join(directory, image)}_PSO.png', im_bin)
+        images.append(im_bin)
+        thrs.append(s)
+        im_bin = (im_bin / 255).astype('uint8')
+        diff_percent = np.sum(np.logical_xor(im_bin, target).astype('uint8')) / im_bin.size * 100
+        print(f'PSO standard - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
+              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
 
-    _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
-    cv2.imshow('result', im_bin)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+        #PSO modified
+        start_time = time()
+        hist2D = calculate_histogram2D(im)
+        s = pso_with_neighborhood(hist2D, N_particles=150, N_iter_neigh=30, N_iter_glob=20, R=20)
+        _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+        stop_time = time()
+        cv2.imwrite(f'{os.path.join(directory, image)}_PSOmod.png', im_bin)
+        images.append(im_bin)
+        thrs.append(s)
+        im_bin = (im_bin / 255).astype('uint8')
+        diff_percent = np.sum(np.logical_xor(im_bin, target)) / im_bin.size * 100
+        print(f'PSO modified - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
+              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
+
+        # ABC method
+        start_time = time()
+        hist2D = calculate_histogram2D(im)
+        s = ABC(hist2D, n=20, m=3, e=1, nep=7, nsp=3, ngh=2, N_iter=10)
+        _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+        stop_time = time()
+        cv2.imwrite(f'{os.path.join(directory, image)}_ABC.png', im_bin)
+        images.append(im_bin)
+        thrs.append(s)
+        im_bin = (im_bin / 255).astype('uint8')
+        diff_percent = np.sum(np.logical_xor(im_bin, target)) / im_bin.size * 100
+        print(f'ABC method  -  Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
+              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
+
+        file.close()
+    fig, axs = plt.subplots(2, 2)
+    fig.suptitle(f'Results for "{image}" test image', y=1.0)
+    axs[0, 0].imshow(images[0])
+    axs[0, 0].set_title(f'Brute force result, threshold = {thrs[0]}')
+    axs[0, 0].axis('off')
+    axs[0, 1].imshow(images[1])
+    axs[0, 1].set_title(f'PSO result, threshold = {thrs[1]}')
+    axs[0, 1].axis('off')
+    axs[1, 0].imshow(images[2])
+    axs[1, 0].set_title(f'PSO_mod result, threshold = {thrs[2]}')
+    axs[1, 0].axis('off')
+    axs[1, 1].imshow(images[3])
+    axs[1, 1].set_title(f'ABC result, threshold = {thrs[3]}')
+    axs[1, 1].axis('off')
+    plt.savefig(f'{os.path.join(directory, image)}_image_compilation.png')
+
+    # _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+    # cv2.imshow('result', im_bin)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
-    main(1)
+    main(image='cameraman')
 
