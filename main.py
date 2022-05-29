@@ -100,8 +100,8 @@ def pso(hist2D, N_particles, N_iter):
     for i in range(N_iter):
         iteration(V, X, pb, f_pb, gb, f_gb, params)
     s, _ = gb
-
-    return round(s)
+    best_val = f_gb
+    return round(s), best_val
 
 
 def pso_with_neighborhood(hist2D, N_particles, N_iter_neigh, N_iter_glob, R):
@@ -165,8 +165,8 @@ def pso_with_neighborhood(hist2D, N_particles, N_iter_neigh, N_iter_glob, R):
     for i in range(N_iter_glob):
         iteration(V, X, pb, f_pb, gb, f_gb, params, 'glob')
     s, _ = gb
-
-    return round(s)
+    best_val = f_gb
+    return round(s), best_val
 
 
 def ABC(hist2D, n, m, e, nep, nsp, ngh, N_iter):
@@ -210,89 +210,176 @@ def ABC(hist2D, n, m, e, nep, nsp, ngh, N_iter):
         if X[0][2] > best[2]:
             best = X[0]
 
-    return round(best[0])
+    return round(best[0]), best[2]
 
-def main(image='rice'):
-    np.random.seed(seed=29)
+
+def main(image='rice', n_of_iters=10, saveim=False):
+    if saveim:
+        np.random.seed(seed=29)
     images = []
     thrs = []
-    # im = cv2.cvtColor(cv2.imread('rice.png'), cv2.COLOR_BGR2GRAY)
+    times_PSO = []
+    times_PSO_modified = []
+    times_ABC =[]
+    differences_PSO = []
+    differences_PSO_modified = []
+    differences_ABC = []
+    costs_PSO = []
+    costs_PSO_modified = []
+    costs_ABC = []
     names = ['rice', 'coins', 'cameraman', 'peppers']
     if image not in names:
         return "Wrong image name. Choose among: 'rice', 'coins', 'cameraman', 'peppers'."
     im = cv2.cvtColor(cv2.imread(f'{image}.png'), cv2.COLOR_BGR2GRAY)
 
-    with open(f"{os.path.join(directory, image)}_result_file.txt", "w") as file:
-        #Brute force
-        start_time = time()
-        s = brute_force(im)
-        _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
-        stop_time = time()
-        target = (im_bin / 255).astype('uint8')
+    #Brute force
+    start_time = time()
+    s = brute_force(im)
+    _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
+    stop_time = time()
+    target = (im_bin / 255).astype('uint8')
+    if saveim:
         cv2.imwrite(f'{os.path.join(directory, image)}_target.png', im_bin)
         images.append(im_bin)
         thrs.append(s)
-        print(f'Brute force - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], threshold: {s}'
-              , file=file)
+    str_brute = f'Brute force - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], threshold: {s}'
 
+    if saveim:
+        n = 1
+    else:
+        n = n_of_iters
+
+    for i in range(n):
         # PSO standard
         start_time = time()
         hist2D = calculate_histogram2D(im)
-        s = pso(hist2D, N_particles=20, N_iter=70)
+        s, cost = pso(hist2D, N_particles=20, N_iter=70)
         _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
         stop_time = time()
-        cv2.imwrite(f'{os.path.join(directory, image)}_PSO.png', im_bin)
-        images.append(im_bin)
-        thrs.append(s)
+        if saveim:
+            cv2.imwrite(f'{os.path.join(directory, image)}_PSO.png', im_bin)
+            images.append(im_bin)
+            thrs.append(s)
         im_bin = (im_bin / 255).astype('uint8')
         diff_percent = np.sum(np.logical_xor(im_bin, target).astype('uint8')) / im_bin.size * 100
-        print(f'PSO standard - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
-              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
+        times_PSO.append(stop_time - start_time)
+        differences_PSO.append(diff_percent)
+        costs_PSO.append(cost)
 
         #PSO modified
         start_time = time()
         hist2D = calculate_histogram2D(im)
-        s = pso_with_neighborhood(hist2D, N_particles=150, N_iter_neigh=30, N_iter_glob=20, R=20)
+        s, cost = pso_with_neighborhood(hist2D, N_particles=150, N_iter_neigh=30, N_iter_glob=20, R=20)
         _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
         stop_time = time()
-        cv2.imwrite(f'{os.path.join(directory, image)}_PSOmod.png', im_bin)
-        images.append(im_bin)
-        thrs.append(s)
+        if saveim:
+            cv2.imwrite(f'{os.path.join(directory, image)}_target.png', im_bin)
+            images.append(im_bin)
+            thrs.append(s)
         im_bin = (im_bin / 255).astype('uint8')
         diff_percent = np.sum(np.logical_xor(im_bin, target)) / im_bin.size * 100
-        print(f'PSO modified - Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
-              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
+        times_PSO_modified.append(stop_time - start_time)
+        differences_PSO_modified.append(diff_percent)
+        costs_PSO_modified.append(cost)
 
         # ABC method
         start_time = time()
         hist2D = calculate_histogram2D(im)
-        s = ABC(hist2D, n=20, m=3, e=1, nep=7, nsp=3, ngh=2, N_iter=10)
+        s, cost = ABC(hist2D, n=20, m=3, e=1, nep=7, nsp=3, ngh=2, N_iter=10)
         _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
         stop_time = time()
-        cv2.imwrite(f'{os.path.join(directory, image)}_ABC.png', im_bin)
-        images.append(im_bin)
-        thrs.append(s)
+        if saveim:
+            cv2.imwrite(f'{os.path.join(directory, image)}_target.png', im_bin)
+            images.append(im_bin)
+            thrs.append(s)
         im_bin = (im_bin / 255).astype('uint8')
         diff_percent = np.sum(np.logical_xor(im_bin, target)) / im_bin.size * 100
-        print(f'ABC method  -  Execution time: {"{:.3f}".format(stop_time-start_time)} [s], '
-              f'threshold: {s}, difference: {"{:.2f}".format(diff_percent)}%', file=file)
+        times_ABC.append(stop_time - start_time)
+        differences_ABC.append(diff_percent)
+        costs_ABC.append(cost)
 
+    with open(f"{os.path.join(directory, image)}_result_file.txt", "w") as file:
+        print(str_brute, file=file)
+        print(f"Algorithms' average over {n} iterations", file=file)
+        if saveim:
+            print(f'PSO standard \nExecution time: {"{:.3f}".format(np.mean(times_PSO))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_PSO))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_PSO))} [s]), \n'
+                  f'Threshold: {s}, Difference: {"{:.2f}".format(np.mean(differences_PSO))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_PSO))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_PSO))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_PSO))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_PSO))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_PSO))})'
+                  , file=file)
+            print(f'PSO modified \nExecution time: {"{:.3f}".format(np.mean(times_PSO_modified))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_PSO_modified))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_PSO_modified))} [s]), \n'
+                  f'Threshold: {s}, Difference: {"{:.2f}".format(np.mean(differences_PSO_modified))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_PSO_modified))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_PSO_modified))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_PSO_modified))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_PSO_modified))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_PSO_modified))})'
+                  , file=file)
+            print(f'ABC method \nExecution time: {"{:.3f}".format(np.mean(times_ABC))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_ABC))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_ABC))} [s]), \n'
+                  f'Threshold: {s}, Difference: {"{:.2f}".format(np.mean(differences_ABC))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_ABC))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_ABC))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_ABC))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_ABC))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_ABC))})'
+                  , file=file)
+        else:
+            print(f'PSO standard \nExecution time: {"{:.3f}".format(np.mean(times_PSO))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_PSO))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_PSO))} [s]), \n'
+                  f'Difference: {"{:.2f}".format(np.mean(differences_PSO))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_PSO))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_PSO))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_PSO))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_PSO))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_PSO))})'
+                  , file=file)
+            print(f'PSO modified \nExecution time: {"{:.3f}".format(np.mean(times_PSO_modified))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_PSO_modified))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_PSO_modified))} [s]), \n'
+                  f'Difference: {"{:.2f}".format(np.mean(differences_PSO_modified))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_PSO_modified))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_PSO_modified))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_PSO_modified))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_PSO_modified))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_PSO_modified))})'
+                  , file=file)
+            print(f'ABC method \nExecution time: {"{:.3f}".format(np.mean(times_ABC))} [s] '
+                  f'(Min: {"{:.3f}".format(np.min(times_ABC))} [s], '
+                  f'Max: {"{:.3f}".format(np.max(times_ABC))} [s]), \n'
+                  f'Difference: {"{:.2f}".format(np.mean(differences_ABC))}% '
+                  f'(Min: {"{:.2f}".format(np.min(differences_ABC))} %, '
+                  f'Max: {"{:.2f}".format(np.max(differences_ABC))} %), \n'
+                  f'Cost: {"{:.2f}".format(np.mean(costs_ABC))} '
+                  f'(Min: {"{:.2f}".format(np.min(costs_ABC))}, '
+                  f'Max: {"{:.2f}".format(np.max(costs_ABC))})'
+                  , file=file)
         file.close()
-    fig, axs = plt.subplots(2, 2)
-    fig.suptitle(f'Results for "{image}" test image', y=1.0)
-    axs[0, 0].imshow(images[0])
-    axs[0, 0].set_title(f'Brute force result, threshold = {thrs[0]}')
-    axs[0, 0].axis('off')
-    axs[0, 1].imshow(images[1])
-    axs[0, 1].set_title(f'PSO result, threshold = {thrs[1]}')
-    axs[0, 1].axis('off')
-    axs[1, 0].imshow(images[2])
-    axs[1, 0].set_title(f'PSO_mod result, threshold = {thrs[2]}')
-    axs[1, 0].axis('off')
-    axs[1, 1].imshow(images[3])
-    axs[1, 1].set_title(f'ABC result, threshold = {thrs[3]}')
-    axs[1, 1].axis('off')
-    plt.savefig(f'{os.path.join(directory, image)}_image_compilation.png')
+    if saveim:
+        fig, axs = plt.subplots(2, 2)
+        fig.suptitle(f'Results for "{image}" test image', y=1.0)
+        axs[0, 0].imshow(images[0])
+        axs[0, 0].set_title(f'Brute force result, threshold = {thrs[0]}')
+        axs[0, 0].axis('off')
+        axs[0, 1].imshow(images[1])
+        axs[0, 1].set_title(f'PSO result, threshold = {thrs[1]}')
+        axs[0, 1].axis('off')
+        axs[1, 0].imshow(images[2])
+        axs[1, 0].set_title(f'PSO_mod result, threshold = {thrs[2]}')
+        axs[1, 0].axis('off')
+        axs[1, 1].imshow(images[3])
+        axs[1, 1].set_title(f'ABC result, threshold = {thrs[3]}')
+        axs[1, 1].axis('off')
+        plt.savefig(f'{os.path.join(directory, image)}_image_compilation.png')
 
     # _, im_bin = cv2.threshold(im, s, 255, cv2.THRESH_BINARY)
     # cv2.imshow('result', im_bin)
@@ -301,5 +388,5 @@ def main(image='rice'):
 
 
 if __name__ == '__main__':
-    main(image='cameraman')
+    main(image='rice')
 

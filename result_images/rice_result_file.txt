@@ -1,4 +1,14 @@
-Brute force - Execution time: 22.013 [s], threshold: 113
-PSO standard - Execution time: 0.861 [s], threshold: 115, difference: 1.81%
-PSO modified - Execution time: 6.052 [s], threshold: 110, difference: 3.60%
-ABC method  -  Execution time: 0.152 [s], threshold: 113, difference: 0.00%
+Brute force - Execution time: 20.385 [s], threshold: 113
+Algorithms' average over 10 iterations
+PSO standard 
+Execution time: 0.897 [s] (Min: 0.719 [s], Max: 1.045 [s]), 
+Difference: 16.95% (Min: 0.97 %, Max: 47.13 %), 
+Cost: 14.41 (Min: 13.81, Max: 14.62)
+PSO modified 
+Execution time: 5.835 [s] (Min: 5.639 [s], Max: 6.224 [s]), 
+Difference: 3.88% (Min: 0.00 %, Max: 8.08 %), 
+Cost: 14.62 (Min: 14.53, Max: 14.69)
+ABC method 
+Execution time: 0.145 [s] (Min: 0.139 [s], Max: 0.158 [s]), 
+Difference: 9.10% (Min: 0.00 %, Max: 19.07 %), 
+Cost: 14.67 (Min: 14.64, Max: 14.71)
